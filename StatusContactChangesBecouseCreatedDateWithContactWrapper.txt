@@ -1,0 +1,135 @@
+rigger PriorityThreeOldContact on Contact (before insert, after insert, before update, after update, before delete, after delete) {
+
+        List <Contact> contactsToUpdate = New List <Contact> ();
+        List <Id> idAccForContactToUpdate = New List <Id> ();
+        
+        //NEW NEW NEW NEW NEW
+        
+    If (Trigger.IsInsert){
+
+            Id accNewCon;
+            for (Contact conNew : Trigger.new){
+    
+                if(conNew.AccountId != null &&
+                   conNew.Birthdate != null){
+                   
+                       accNewCon = conNew.AccountId;
+                       idAccForContactToUpdate.add(accNewCon);
+                }
+            }                               
+    }
+    
+    else if(Trigger.IsAfter){
+       if (Trigger.IsUpdate){
+           
+            Id accNewCon;
+            Id accOldCon;
+            Id birthNewCon;
+           
+            for (Contact conNew : Trigger.new){
+               
+                Contact conOld = Trigger.OldMap.get(conNew.Id);
+                   
+                if(conOld.AccountId != conNew.AccountId){
+                        
+                    accNewCon = conNew.AccountId;
+                    accOldCon = conOld.AccountId;
+                    
+                    idAccForContactToUpdate.add(accNewCon);
+                    idAccForContactToUpdate.add(accOldCon);
+                }               
+                else if(conOld.Birthdate != conNew.Birthdate){
+                    
+                    birthNewCon = conNew.AccountId;                    
+                    idAccForContactToUpdate.add(birthNewCon);                       
+                }
+            }
+       }
+    }
+    
+    else if(Trigger.IsAfter){
+        if(Trigger.IsDelete){
+
+            Id accOldCon;
+            for (Contact conOld : Trigger.old){
+    
+                if(conOld.AccountId != null &&
+                   conOld.Birthdate != null){
+                   
+                       accOldCon = conOld.AccountId;
+                       idAccForContactToUpdate.add(accOldCon);
+                }
+            }        
+        }   
+    }
+
+    
+    
+//ACTION WITH CONTACTS  ACTION WITH CONTACTS  ACTION WITH CONTACTS        
+    
+    if ( !idAccForContactToUpdate.isEmpty() ){
+            
+            contactsToUpdate.addAll([Select Id, AccountId, LastName, Birthdate, Priority__c From Contact 
+                                     Where AccountId In : idAccForContactToUpdate]);
+        
+            LIST <Contact> toEndUpdate = NEW LIST <Contact>();
+           
+            Map <Id,  List <Contact> > mapGroupsContacts = new Map <Id,  List <Contact> > ();
+           
+            for ( Contact con : contactsToUpdate ){
+                
+                if ( mapGroupsContacts.containsKey(con.AccountId)){
+                    List <Contact> contactsOneAccount = mapGroupsContacts.get(con.AccountId);
+                    contactsOneAccount.add(con);
+                    mapGroupsContacts.put(con.AccountId, contactsOneAccount);
+                    system.debug('Okey after sorting if map contains Key');
+                    
+                } else {
+                    mapGroupsContacts.put(con.AccountId, new List <Contact> {con});
+                    system.debug('Okey before sorting if map doesn`t contain Key');
+                }
+            }    
+                     
+            List <Contact> ToUpdate = New List <Contact> ();
+                      
+            for ( List <Contact> listConBeforeSort : mapGroupsContacts.values() ){
+                
+                //метод вовращающий  онтакты по пор€дку Birthdate
+                       
+                Integer priority = 1;
+                          
+                FOR ( ContactWrapper wrap : getSortedContactWrapper(listConBeforeSort)){
+                    
+                    Contact num = wrap.cont;
+                    
+                    IF ( priority <= 3 ){
+                        ToUpdate.add(new Contact(
+                            Id = num.Id,
+                            priority__c = priority));
+                            system.debug('Okey after filer and prioritizing ' + priority);
+                            
+                    }
+                    ELSE IF ( priority > 3 ){
+                        ToUpdate.add((new Contact(
+                            Id = num.Id,
+                            priority__c = null)));
+                    }
+                    priority++;
+                    system.debug('Priority after plus ' + priority);
+                }   
+            }
+            update ToUpdate;
+            system.debug('Okey after main and short method');
+    }
+    
+    
+    public List <ContactWrapper> getSortedContactWrapper ( List <Contact> contacts ){
+                List <ContactWrapper> wrappers = NEW List <ContactWrapper> ();
+                FOR ( Contact con : contacts){
+                    wrappers.add( New ContactWrapper (con));
+                    system.debug('Okey after sorting by Comparable');
+                }
+                wrappers.sort();
+                return wrappers;
+    }
+}

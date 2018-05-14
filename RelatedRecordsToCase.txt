@@ -1,0 +1,75 @@
+trigger CasesRelatedRecords on Case (after insert, after update, before delete) {
+    
+    List <Case> casesToAddLog = new List <Case>();
+    List <Case> casesToDeleteLog = new List <Case>();
+
+    
+    if (Trigger.isInsert){
+        for (Case caseValue : Trigger.new){
+            if(caseValue.Status == 'Completed'){
+                casesToAddLog.add(caseValue); 
+            }
+        }
+    }
+    
+    if (Trigger.isUpdate){
+        for (Case caseValueNew : Trigger.new){
+            if(caseValueNew.Status == 'Completed'){
+                
+                Case caseValueOld = Trigger.OldMap.get(caseValueNew.Id);
+                
+                if(caseValueOld.Status != 'Completed'){
+                    casesToAddLog.add(caseValueNew);
+                }
+            }
+            else{
+                casesToDeleteLog.add(caseValueNew);
+            }
+        }
+    }
+    
+    if (Trigger.isDelete){
+        
+        List <Log__c> deleteRelatedCasesLog = new List <Log__c> ();
+        
+        for (Case caseValue : Trigger.old){
+            Log__c deleteLogItem = [Select Id, Name From Log__c Where Case_c__c  =: caseValue.Id AND Name = 'New from case'];
+            deleteRelatedCasesLog.add(deleteLogItem);
+        }
+        delete deleteRelatedCasesLog;
+    }
+    
+    
+    if(!casesToAddLog.isEmpty()){
+        
+        List <Case> getId = [Select Id From Case Where Id In : casesToAddLog];
+        
+        List <Log__c> createLog = new List <Log__c>();
+        
+        for(Case createNewLog : getId){
+            createLog.add(
+                new Log__c (Case_c__c = createNewLog.Id, Name = 'New from case')
+            );
+        }
+        
+        insert createLog;
+    }
+    
+    
+    if(!casesToDeleteLog.isEmpty()){
+        
+        List <Log__c> deleteLog = New List <Log__c>();
+        
+        List <Log__c> beforeDeleteLog = [Select Id, Name From Log__c Where Case_c__c IN : casesToDeleteLog];  
+        
+        for ( Log__c deleteLogItem : beforeDeleteLog){
+            if( deleteLogItem.Name == 'New from case'){
+                deleteLog.add(deleteLogItem);
+            }
+        }
+           
+        delete deleteLog;
+        
+    }
+    
+}
