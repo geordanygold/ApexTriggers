@@ -1,0 +1,55 @@
+trigger CompletedAccounts on Account (before insert, after insert, before update, after update, before delete, after delete) {
+    
+    List <Id> idAccToUpdate = New List <Id> ();
+    
+    If (Trigger.IsInsert){
+                        
+        for (Account accNew : Trigger.new){
+            if(accNew.NumberOfAdultContacts__c != null){
+                idAccToUpdate.add(accNew.Id);
+            }
+        }
+        
+    }
+      
+   
+    else if (Trigger.IsUpdate){
+        
+        for (Account accNew : Trigger.new){
+            
+            Account accOld = Trigger.OldMap.get(accNew.Id);
+            
+            if(accOld.NumberOfAdultContacts__c != accNew.NumberOfAdultContacts__c){
+                idAccToUpdate.add(accNew.Id);
+            }
+        }              
+    }
+       
+              
+    else if (Trigger.IsAfter){
+        if (Trigger.IsDelete){
+            
+            for (Account accOld : Trigger.old){
+                if(accOld.NumberOfAdultContacts__c != null){
+                    idAccToUpdate.add(accOld.Id);
+                }
+          }
+        }
+    }
+    
+    if (!idAccToUpdate.isEmpty()){
+        
+        List <Account> accsToUpdate = new List <Account> ();
+        
+        List <Account> accsToCheck = [Select Id, NumberOfAdultContacts__c from Account Where Id In : idAccToUpdate];
+        
+        for (Account accItem : accsToCheck){
+            if (accItem.NumberOfAdultContacts__c >= 5 ){
+                accsToUpdate.add(new Account (
+                  Id = accItem.Id, 
+                  Status__c = 'Completed'));
+            }
+        }
+        update accsToUpdate;        
+    }        
+}

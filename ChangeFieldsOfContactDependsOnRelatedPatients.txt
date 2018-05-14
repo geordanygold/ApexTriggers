@@ -1,0 +1,148 @@
+trigger PatientsContacts on Patient__c (before insert, after insert, before update, after update) {
+
+    System.debug( LoggingLevel.ERROR, 'incoing point' );
+    
+    List <Patient__c> patients = new List <Patient__c>();
+    List <Id> idHospitals = new List <Id>();
+    
+    if (Trigger.IsAfter){
+        If (Trigger.IsInsert){
+          
+            for (Patient__c patNew : Trigger.New){
+                
+                System.debug( LoggingLevel.ERROR, 'It`s not Okey after insert' );
+                
+                if(patNew.Hospital__c != null &&
+                   patNew.Last_Name__c != null &&
+                   patNew.Email__c != null &&
+                   patNew.Birthdate__c != null &&
+                   patNew.AccountId__c != null) {
+    
+                    patients.add(patNew);
+                    idHospitals.add(patNew.Hospital__c);
+                    system.debug(patNew.Hospital__c);
+                }
+            }
+        }
+        
+        
+       
+        else if (Trigger.IsUpdate){
+            
+            if(checkRecursive.runOnce()){
+                for (Patient__c patNew : Trigger.New){
+                
+                    System.debug(System.LoggingLevel.ERROR, 'message goes here' );
+                    System.debug('This is Id ' + patNew.Hospital__c );
+                    
+                    if(patNew.Hospital__c != null &&
+                       patNew.Last_Name__c != null &&
+                       patNew.Email__c != null &&
+                       patNew.Birthdate__c != null &&
+                       patNew.AccountId__c != null){
+                           
+                        patients.add(patNew);
+                    
+                        idHospitals.add(patNew.Hospital__c);
+                     }
+                                      
+                    
+                    Patient__c patOld = Trigger.OldMap.get(patNew.Id);
+                    
+                    if(patNew.Hospital__c != patOld.Hospital__c) {
+                        
+                        idHospitals.add(patNew.Hospital__c);
+                        idHospitals.add(patOld.Hospital__c);
+                    }
+                }            
+            }            
+        }            
+    }  
+               
+ 
+    
+    if( !idHospitals.isEmpty() ){
+        
+        List <Patient__c> patsToUpdate = new List <Patient__c>();
+        List <Contact> contsToInsert = new List <Contact>();
+        
+        List <Hospital__c> hospitalsAllPatients = [Select Id, Account__c From Hospital__c Where Id In : idHospitals];               
+        
+        List <Id> idAccsAllHospitals = new List <Id>();
+        
+        for (Hospital__c hosp : hospitalsAllPatients){
+            idAccsAllHospitals.add(hosp.Account__c);
+            system.debug('This is Id of hosp.Acc ' + hosp.Account__c);
+        }
+        
+        List <Contact> contsAllAccounts = [Select Id, AccountId, LastName, Email, Birthdate From Contact Where AccountId In : idAccsAllHospitals];
+        
+        
+//compare fields between Contact AND Patient__c 
+        
+        MAP <String, Contact> mapContacts = new MAP <String, Contact>();
+        MAP <String, Patient__c> mapPatients = new MAP <String, Patient__c>();
+        
+        for (Contact contValue : contsAllAccounts){
+            String createKey = generateContItem(contValue);
+            
+            System.debug( LoggingLevel.ERROR, '>>cont key >' + createKey );
+            
+            mapContacts.put(createKey, contValue); 
+        }  
+        
+        for(Patient__c patValue : patients){
+            String createKey = generatePatItem(patValue);
+            
+            System.debug( LoggingLevel.ERROR, '>>pat key >' + createKey );
+            
+            mapPatients.put(createKey, patValue);                                    
+        }
+
+        
+        for (String keyPat : mapPatients.keySet()){
+            if(mapContacts.containsKey(keyPat)){
+                
+                patsToUpdate.add(new Patient__c(
+                    Id = mapPatients.get(keyPat).Id,
+                    Contact__c = mapContacts.get(keyPat).Id));                
+            } 
+           
+            else if (!mapContacts.containsKey(keyPat)) {
+                                
+                contsToInsert.add(new Contact (
+                    AccountId = mapPatients.get(keyPat).AccountId__c,
+                    LastName = mapPatients.get(keyPat).Last_Name__c, 
+                    Birthdate = mapPatients.get(keyPat).Birthdate__c, 
+                    Email = mapPatients.get(keyPat).Email__c));
+            }
+        }                        
+        update  patsToUpdate; 
+        insert contsToInsert;
+    }
+
+    
+    private static String generateContItem ( Contact contItem ){
+        
+        return
+            contItem.LastName.toLowerCase()
+            +
+            contItem.Email.toLowerCase()
+            +
+            contItem.Birthdate
+            +
+            contItem.AccountId;
+    }
+    
+    private static String generatePatItem ( Patient__c patItem ){
+        
+        return
+            patItem.Last_Name__c.toLowerCase()
+            +
+            patItem.Email__c.toLowerCase()
+            +
+            patItem.Birthdate__c
+            +
+            patItem.AccountId__c;
+    }
+}

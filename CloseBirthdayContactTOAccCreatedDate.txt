@@ -1,0 +1,121 @@
+trigger CloseBirthdayContactToAccCreateddate on Contact (after insert, after update, after delete) {
+    
+    List <Account> closeAccToContact = New List <Account> ();
+    List <Id> idAccToUpdate = New List <Id> ();
+   
+    If (Trigger.IsInsert){
+       
+        Id accNewCon;
+       
+        for (Contact conNew : Trigger.New){
+            if(conNew.AccountId != null &&
+               conNew.Birthdate != null){
+                  
+                   accNewCon = conNew.AccountId;
+                   idAccToUpdate.add(accNewCon);
+            }
+        }
+    }
+   
+
+    else if (Trigger.IsUpdate){
+       
+            Id accNewCon;
+            Id accOldCon;
+            Id birthNewCon;
+          
+            for (Contact conNew : Trigger.new){
+              
+                Contact conOld = Trigger.OldMap.get(conNew.Id);
+                  
+                if(conOld.AccountId != conNew.AccountId){
+                       
+                    accNewCon = conNew.AccountId;
+                    accOldCon = conOld.AccountId;
+                   
+                    idAccToUpdate.add(accNewCon);
+                    idAccToUpdate.add(accOldCon);
+                }              
+                else if(conOld.Birthdate != conNew.Birthdate){
+                   
+                    birthNewCon = conNew.AccountId;                   
+                    idAccToUpdate.add(birthNewCon);                       
+                }
+            }
+    }
+   
+    else if(Trigger.IsAfter){
+        if(Trigger.IsDelete){
+
+            Id accOldCon;
+            for (Contact conOld : Trigger.old){
+   
+                if(conOld.AccountId != null &&
+                   conOld.Birthdate != null){
+                  
+                       accOldCon = conOld.AccountId;
+                       idAccToUpdate.add(accOldCon);
+                  }
+            }       
+        }  
+    }
+   
+   
+    If ( !idAccToUpdate.isEmpty() ){
+       
+        List <Contact> contactsBeforeSort = [Select Id, AccountId, Birthdate From Contact Where AccountId In : idAccToUpdate];
+       
+        List <Account> accsBeforeUpdate = [Select Id, CreateBirthdate__c, ClosesBirthdayContact__c From Account Where Id In : idAccToUpdate];
+        
+        List <Account> accsToUpdate = new List <Account> ();
+       
+        Map <Id,  List <Contact> > mapGroupsContacts = new Map <Id,  List <Contact> > ();
+          
+        for ( Contact con : contactsBeforeSort ){
+               
+                if ( mapGroupsContacts.containsKey(con.AccountId)){
+                    List <Contact> contactsOneAccount = mapGroupsContacts.get(con.AccountId);
+                    contactsOneAccount.add(con);
+                    mapGroupsContacts.put(con.AccountId, contactsOneAccount);
+                    system.debug('Okey after sorting if map contains Key');
+                   
+                } else {
+                    mapGroupsContacts.put(con.AccountId, new List <Contact> {con});
+                    system.debug('Okey before sorting if map doesn`t contain Key');
+                }
+        }
+       
+        for ( Account acc : accsBeforeUpdate ){
+            for ( Id idAccToUpdate : mapGroupsContacts.keySet() ){
+               
+                if (   mapGroupsContacts.containsKey(acc.Id) ){
+                   
+                    List <Contact> toFindCloserContactToAcc = mapGroupsContacts.get(idAccToUpdate);
+                                       
+                    Date createdAcc = acc.CreateBirthdate__c;
+                   
+                    Contact closerContact = toFindCloserContactToAcc[0];
+                    Date closerBirthdateCont = closerContact.Birthdate;
+                    Integer minDifferent = Math.abs(createdAcc.daysBetween(closerBirthdateCont));
+                   
+                    for ( Contact cont : toFindCloserContactToAcc ){
+                       
+                        Date secondCloserBirthdateCont = cont.Birthdate;                       
+                        Integer tempDiff = Math.abs(createdAcc.daysBetween(secondCloserBirthdateCont));
+                       
+                        if (tempDiff < minDifferent){                            
+                            closerBirthdateCont = secondCloserBirthdateCont;
+                            minDifferent = tempDiff;
+                            closerContact = cont;
+                        }
+                    }
+                   
+                    accsToUpdate.add( new Account(
+                        Id = acc.Id,
+                        ClosesBirthdayContact__c = closerContact.Id));
+                }
+            }
+        }
+        update accsToUpdate;
+    }
+}

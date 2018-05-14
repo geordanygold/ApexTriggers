@@ -1,0 +1,113 @@
+trigger CountSumRaitingPositionInCandidate on Position__c (after insert, after update) {
+
+
+    //ѕ≈–¬јя „ј—“№ - считаю кол-во child и присваиваю полю Count
+
+    Map<Id, AggregateResult> createMap = new Map<Id, AggregateResult> ( [SELECT Candidate__r.Id, Count(Rating__c) 
+                                                                         FROM Position__c 
+                                                                         WHERE Candidate__r.Id <> null
+                                                                         AND Id In : Trigger.new
+                                                                         Group by Candidate__r.Id]);
+    
+    System.debug(createMap);
+/*    
+    Map <Id, Integer> convertType = new Map <Id, Integer> ();
+    
+    for ( Id pos : createMap.keySet() ){
+        AggregateResult valueInt = createMap.get(pos);
+        Integer mapCount = (Integer)valueInt.get('expr0');
+        convertType.put(pos, mapCount);
+    }
+*/      
+    
+    List<Position__c> positionsToProcess = Trigger.new;
+    
+    Set <Id> parentsId = NEW Set <Id> ();
+    
+    for ( Position__c getIdValue : positionsToProcess ){
+        parentsId.add(getIdValue.Candidate__c);
+    }
+            
+    List <Candidate__c> candList = [Select Id, Sum__c, Count__c From Candidate__c Where Id In : parentsId];
+/*    
+    for ( Id idmap : convertType.keySet()){
+        for ( Candidate__c cand : candList ){
+            if ( idmap == cand.Id ){
+                Integer timeValue = convertType.get(idmap);
+                cand.Count__c = timeValue;  // а тут присваиваем значению Count новоe
+            }
+        }
+    } 
+*/  
+    
+    List<Candidate__c> candsToUpdate = new List<Candidate__c>();
+
+    for ( Id candidateId : createMap.keySet() ){
+    
+        AggregateResult aggrResItem = createMap.get(candidateId);
+    
+        candsToUpdate.add(
+            new Candidate__c(
+                Id = candidateId,
+                Count__c = (Integer) aggrResItem.get('count')
+            )
+        );
+        
+    }
+    
+    update candsToUpdate;
+    
+    
+    /*
+     *
+        
+    List<Posistion__c> positionsToProcess = Trigger.new;
+    
+    Set<Id> candidateIds = new Set<Id>();
+    
+    for ( Posistion__c pos : positionsToProcess ){
+        candidateIds.add( pos.Candidate__c );
+    }
+
+    candidateIds.remove(null);
+    
+    if ( candidateIds.isEmpty() ){
+        return; 
+    }
+
+
+Where Candidate__c IN : candidateIds
+
+     * */
+    
+    
+    //¬“ќ–јя „ј—“№ - ищу сумы значений пол€ Raiting__c и присваиваю полю Sum__c    
+    
+    Map < Id, AggregateResult > myMap = NEW Map < Id, AggregateResult > ( [Select Candidate__r.Id, Sum(Rating__c)
+                                                                            From Position__c
+                                                                            Where Candidate__c != null
+                                                                            Group by Candidate__r.Id] );
+    
+    Map < Id, Decimal > convertType2 = new Map < Id, Decimal > ();// этот ћј– дл€ добавл€ни€ в него Id, AggregateResult после смены типа в 
+                                                            // Id, Decimal
+    
+    for ( Id pos : myMap.keySet() ){
+        AggregateResult valueInt = myMap.get(pos);
+        Decimal mapSum = (Decimal)valueInt.get('expr0');
+        convertType2.put(pos, mapSum);
+    }
+    
+    system.debug(convertType2);  
+        
+    for ( Id pos : convertType2.keySet() ){
+            for ( Candidate__c cand : candList ){
+                if ( pos == cand.Id ){
+                    Decimal timeValue = convertType2.get(pos);
+                    cand.Sum__c = timeValue;   
+                }
+            }
+    }    
+        
+    update candList;    
+ 
+}

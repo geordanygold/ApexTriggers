@@ -1,0 +1,76 @@
+trigger ContsPatientsDependsFields on Contact (after insert, after update) {
+    
+    List <Patient__c> patients = new List <Patient__c>();
+    List <Contact> newContacts = new List <Contact>();
+
+    if (Trigger.IsAfter){
+    If (Trigger.IsInsert){
+      
+        for (Contact conNew : Trigger.New){
+            newContacts.add(conNew);
+//            Patient__c patientItem = conNew.Patients__r.get(0);
+//            patients.add(patientItem);
+        }
+    }
+    }
+    
+  
+    If (Trigger.IsUpdate){
+      
+        for (Contact conNew : Trigger.New){
+            
+            system.debug('Bred!');
+            
+            newContacts.add(conNew);
+            
+            Contact conOld = Trigger.OldMap.get(conNew.Id);
+            
+            if(conOld.FirstName != conNew.FirstName){
+                system.debug('stipulation works');
+                newContacts.add(conNew);
+            }
+        }
+    }
+    
+    
+    if(!newContacts.isEmpty()){
+        
+        system.debug('Okey!');
+        
+        List <Patient__c> patsToUpdate = new List <Patient__c>();
+        
+        for (Contact cont : newContacts){
+            
+            system.debug('Not Okey!');
+                         
+      Patient__c patientItem = cont.Patients__r.get(0);
+            
+            system.debug('Not Okey! But');
+
+            if (patientItem.First_Name__c != cont.FirstName){
+                patsToUpdate.add(new Patient__c (
+                  Id = patientItem.Id,
+                  First_Name__c = cont.FirstName));
+            }
+            
+            else if (patientItem.Last_Name__c != cont.LastName){
+                patsToUpdate.add(new Patient__c (
+                  Id = patientItem.Id,
+                  Last_Name__c = cont.LastName));
+            }
+            
+            else if (patientItem.Birthdate__c != cont.Birthdate){
+                patsToUpdate.add(new Patient__c (
+                  Id = patientItem.Id,
+                  Birthdate__c = cont.Birthdate));
+            }
+            
+            else if (patientItem.Email__c != cont.Email){
+                patsToUpdate.add(new Patient__c (
+                  Id = patientItem.Id,
+                  Email__c = cont.Email));
+            }            
+        }
+        update patsToUpdate;
+    }
+}
